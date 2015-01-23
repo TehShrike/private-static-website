@@ -31,6 +31,7 @@ module.exports = function(options) {
 	checkFor(options, 'transportOptions')
 	checkFor(options, 'defaultMailOptions')
 	checkFor(options, 'getEmailText')
+	checkFor(options, 'domain')
 
 	var jlc = JustLoginCore(options.db || levelmem('jlcDb'))
 	var debounceDb = levelmem('debouncing')
@@ -62,7 +63,7 @@ module.exports = function(options) {
 	var server = http.createServer()
 	var io = socketio(server)
 
-	server.on('request', httpHandler.bind(null, serveContentFromRepo, servePublicContent, io, jlc, userHasAccess))
+	server.on('request', httpHandler.bind(null, serveContentFromRepo, servePublicContent, io, jlc, userHasAccess, options.domain))
 	io.on('connection', socketHandler.bind(null, jlc, userHasAccess))
 
 	server.updateUsers = function updateUsers(contents) {
@@ -83,7 +84,7 @@ module.exports = function(options) {
 	return server
 }
 
-function httpHandler(serveContentFromRepo, servePublicContent, io, jlc, userHasAccess, req, res) {
+function httpHandler(serveContentFromRepo, servePublicContent, io, jlc, userHasAccess, domain, req, res) {
 	var cookies = new Cookie(req, res)
 	var sessionId = cookies.get(sessionCookieId)
 
@@ -91,7 +92,7 @@ function httpHandler(serveContentFromRepo, servePublicContent, io, jlc, userHasA
 	if (!sessionId) {
 		sessionId = uuid()
 		cookies.set(sessionCookieId, sessionId, {
-			domain: 'localhost.com',
+			domain: domain,
 			httpOnly: false
 		})
 	}
