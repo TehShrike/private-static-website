@@ -1,0 +1,42 @@
+{
+  "name": "private-static-website",
+  "version": "1.0.0",
+  "description": "Easily host a private web site authenticated by email address only",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublish": "browserify public/login.js -o public/build.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TehShrike/private-static-website.git"
+  },
+  "keywords": [
+    "http",
+    "server",
+    "private"
+  ],
+  "author": "TehShrike",
+  "license": "WTFPL",
+  "bugs": {
+    "url": "https://github.com/TehShrike/private-static-website/issues"
+  },
+  "homepage": "https://github.com/TehShrike/private-static-website",
+  "dependencies": {
+    "cookie": "^0.1.2",
+    "cookies": "^0.5.0",
+    "dom-classes": "0.0.1",
+    "domready": "^1.0.7",
+    "es6-shim": "^0.22.2",
+    "github": "^0.2.3",
+    "hidden": "^1.0.0",
+    "just-login-core": "^1.2.7",
+    "just-login-debouncer": "^1.3.0",
+    "just-login-emailer": "^1.1.0",
+    "level-mem": "^0.18.0",
+    "promise": "^6.0.1",
+    "random-uuid-v4": "0.0.4",
+    "socket.io": "^1.3.0",
+    "socket.io-client": "^1.3.0"
+  }
+}
