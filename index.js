@@ -52,7 +52,7 @@ module.exports = function(options) {
 		passthrough: false
 	})
 	var servePublicContent = st({
-		path: './public',
+		path: __dirname + '/public',
 		url: publicPath,
 		passthrough: true,
 		cache: false,
