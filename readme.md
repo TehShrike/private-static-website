@@ -36,3 +36,4 @@ Serves up the content of a local directory to everyone who logs in with an allow
 ## Todo
 
 - logging out
+- turn caching back on
