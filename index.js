@@ -26,12 +26,14 @@ function checkFor(obj, property) {
 	}
 }
 
-module.exports = function(options) {
+module.exports = function(options, server) {
 	checkFor(options, 'privateContentPath')
 	checkFor(options, 'transportOptions')
 	checkFor(options, 'defaultMailOptions')
 	checkFor(options, 'getEmailText')
 	checkFor(options, 'domain')
+
+	server = server || http.createServer()
 
 	var jlc = JustLoginCore(options.db || levelmem('jlcDb'))
 	var debounceDb = levelmem('debouncing')
@@ -39,7 +41,7 @@ module.exports = function(options) {
 	justLoginDebouncer(jlc, debounceDb)
 	emailer(jlc, options.getEmailText, options.transportOptions, options.defaultMailOptions, function(err) {
 		if (err) {
-			console.error(err.message || err)
+			console.error('Error sending email!', err.message || err)
 		}
 	})
 
@@ -60,7 +62,6 @@ module.exports = function(options) {
 		index: 'index.html'
 	})
 
-	var server = http.createServer()
 	var io = socketio(server)
 
 	server.on('request', httpHandler.bind(null, serveContentFromRepo, servePublicContent, io, jlc, userHasAccess, options.domain))
@@ -68,7 +69,7 @@ module.exports = function(options) {
 
 	server.updateUsers = function updateUsers(contents) {
 		try {
-			var userEmailAddresses = JSON.parse(contents)
+			var userEmailAddresses = Array.isArray(contents) ? contents : JSON.parse(contents)
 
 			usersWithAccess = userEmailAddresses.map(function lc(str) {
 				return str.toLowerCase()
@@ -77,7 +78,7 @@ module.exports = function(options) {
 				return o
 			}, {})
 		} catch (e) {
-			console.error(e)
+			console.error('Error parsing JSON', contents , e.msg || e)
 		}
 	}
 
