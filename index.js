@@ -58,7 +58,6 @@ module.exports = function(options, server) {
 		path: __dirname + '/public',
 		url: publicPath,
 		passthrough: true,
-		cache: false,
 		index: 'index.html'
 	})
 
