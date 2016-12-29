@@ -1,20 +1,18 @@
-require('es6-shim')
+const ecstatic = require('ecstatic')
+const socketio = require('socket.io')
+const Cookie = require('cookies')
+const uuid = require('random-uuid-v4')
+const JustLoginCore = require('just-login-core')
+const justLoginDebouncer = require('just-login-debouncer')
+const levelmem = require('level-mem')
+const emailer = require('just-login-emailer')
 
-var st = require('st')
-var socketio = require('socket.io')
-var Cookie = require('cookies')
-var uuid = require('random-uuid-v4')
-var JustLoginCore = require('just-login-core')
-var justLoginDebouncer = require('just-login-debouncer')
-var levelmem = require('level-mem')
-var emailer = require('just-login-emailer')
+const http = require('http')
+const path = require('path')
 
-var http = require('http')
-var path = require('path')
-
-var publicPath = '/public'
-var sessionCookieId = 'sweetSessionIdentifier'
-var tokenPrefix = public('auth?token=')
+const publicPath = '/public'
+const sessionCookieId = 'sweetSessionIdentifier'
+const tokenPrefix = public('auth?token=')
 
 function public(str) {
 	return path.join(publicPath, str)
@@ -22,7 +20,7 @@ function public(str) {
 
 function checkFor(obj, property) {
 	if (!obj || typeof obj[property] === 'undefined') {
-		throw new Error('Options must have "' + property + '" property')
+		throw new Error(`Options must have "${property}" property`)
 	}
 }
 
@@ -35,9 +33,10 @@ module.exports = function(options, server) {
 
 	server = server || http.createServer()
 
-	var jlc = JustLoginCore(options.db || levelmem('jlcDb'))
-	var debounceDb = levelmem('debouncing')
-	var usersWithAccess = {}
+	const jlc = JustLoginCore(options.db || levelmem('jlcDb'))
+	const debounceDb = levelmem('debouncing')
+	let usersWithAccess = {}
+
 	justLoginDebouncer(jlc, debounceDb)
 	emailer(jlc, options.getEmailText, options.transportOptions, options.defaultMailOptions, function(err) {
 		if (err) {
@@ -49,26 +48,26 @@ module.exports = function(options, server) {
 		return !!usersWithAccess[emailAddress.toLowerCase()]
 	}
 
-	var serveContentFromRepo = st({
-		path: options.privateContentPath,
-		index: 'index.html',
-		passthrough: false
+	const serveContentFromRepo = ecstatic({
+		root: options.privateContentPath,
+		autoIndex: true,
+		handleError: true
 	})
-	var servePublicContent = st({
-		path: __dirname + '/public',
-		url: publicPath,
-		passthrough: true,
-		index: 'index.html'
+	const servePublicContent = ecstatic({
+		root: __dirname + '/public',
+		baseDir: publicPath,
+		handleError: true,
+		autoIndex: true
 	})
 
-	var io = socketio(server)
+	const io = socketio(server)
 
-	server.on('request', httpHandler.bind(null, serveContentFromRepo, servePublicContent, io, jlc, userHasAccess, options.domain))
-	io.on('connection', socketHandler.bind(null, jlc, userHasAccess))
+	server.on('request', (req, res) => httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, userHasAccess, domain: options.domain }, req, res))
+	io.on('connection', socket => socketHandler({ jlc, userHasAccess, socket }))
 
 	server.updateUsers = function updateUsers(contents) {
 		try {
-			var userEmailAddresses = Array.isArray(contents) ? contents : JSON.parse(contents)
+			const userEmailAddresses = Array.isArray(contents) ? contents : JSON.parse(contents)
 
 			usersWithAccess = userEmailAddresses.map(function lc(str) {
 				return str.toLowerCase()
@@ -77,16 +76,16 @@ module.exports = function(options, server) {
 				return o
 			}, {})
 		} catch (e) {
-			console.error('Error parsing JSON', contents , e.msg || e)
+			console.error('Error parsing JSON', contents, e.msg || e)
 		}
 	}
 
 	return server
 }
 
-function httpHandler(serveContentFromRepo, servePublicContent, io, jlc, userHasAccess, domain, req, res) {
-	var cookies = new Cookie(req, res)
-	var sessionId = cookies.get(sessionCookieId)
+function httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, userHasAccess, domain }, req, res) {
+	const cookies = new Cookie(req, res)
+	let sessionId = cookies.get(sessionCookieId)
 
 	// session management
 	if (!sessionId) {
@@ -100,17 +99,17 @@ function httpHandler(serveContentFromRepo, servePublicContent, io, jlc, userHasA
 	// routing
 	if (req.url === public('session.js')) {
 		res.setHeader('Content-Type', 'text/javascript')
-		res.end(sessionCookieId + '="' + sessionId + '"')
+		res.end(`${sessionCookieId}="${sessionId}"`)
 	} else if (req.url.startsWith(tokenPrefix)) {
-		var token = req.url.substr(tokenPrefix.length)
+		const token = req.url.substr(tokenPrefix.length)
 
 		jlc.authenticate(token, function(err, credentials) {
-			var target = public('success.html')
+			let target = public('success.html')
 			if (err) {
-				console.log('Someone had an error authenticating at the token endpoint', err.message || err)
+				console.error('Someone had an error authenticating at the token endpoint', err.message || err)
 				target = public('index.html')
 			} else {
-				var sessionSocket = io.to(credentials.sessionId)
+				const sessionSocket = io.to(credentials.sessionId)
 				sendAuthenticationMessageToClient(userHasAccess, sessionSocket.emit.bind(sessionSocket), credentials.contactAddress)
 			}
 
@@ -119,7 +118,9 @@ function httpHandler(serveContentFromRepo, servePublicContent, io, jlc, userHasA
 			})
 			res.end()
 		})
-	} else if (!req.url.startsWith('/socket.io/') && !servePublicContent(req, res)) {
+	} else if (req.url === '/public' || req.url.startsWith('/public/')) {
+		servePublicContent(req, res)
+	} else if (!req.url.startsWith('/socket.io/')) {
 		jlc.isAuthenticated(sessionId, function(err, emailAddress) {
 			if (err) {
 				res.writeHead(500)
@@ -136,8 +137,8 @@ function httpHandler(serveContentFromRepo, servePublicContent, io, jlc, userHasA
 	}
 }
 
-function socketHandler(jlc, userHasAccess, socket) {
-	var sessionId = new Cookie(socket.request).get(sessionCookieId)
+function socketHandler({ jlc, userHasAccess, socket }) {
+	const sessionId = new Cookie(socket.request).get(sessionCookieId)
 	if (sessionId) {
 		socket.join(sessionId)
 	} else {
@@ -155,7 +156,7 @@ function socketHandler(jlc, userHasAccess, socket) {
 			jlc.beginAuthentication(sessionId, emailAddress, function(err, credentials) {
 				if (err) {
 					if (err.debounce) {
-						socket.emit('warning', 'Too many login requests! Please wait ' + Math.round(credentials.remaining / 1000) + ' seconds.')
+						socket.emit('warning', `Too many login requests! Please wait ${Math.round(credentials.remaining / 1000)}  seconds.`)
 					} else {
 						console.error('error?!?!?!', err.message || err)
 					}
@@ -169,6 +170,6 @@ function sendAuthenticationMessageToClient(userHasAccess, emit, emailAddress) {
 	if (userHasAccess(emailAddress)) {
 		emit('authenticated', emailAddress)
 	} else {
-		emit('warning', 'You are authenticated as ' + emailAddress + ' but that user doesn\'t have access')
+		emit('warning', `You are authenticated as ${emailAddress} but that user doesn't have access`)
 	}
 }

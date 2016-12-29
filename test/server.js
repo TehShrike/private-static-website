@@ -1,9 +1,8 @@
-var privateServer = require('../')
-var path = require('path')
-var https = require('https')
-var readFileSync = require('fs').readFileSync
+const privateServer = require('../')
+const path = require('path')
+const http = require('http')
 
-var options = {
+const options = {
 	privateContentPath: __dirname + '/private',
 	// db: levelmem('lol'),
 	transportOptions: {
@@ -13,7 +12,7 @@ var options = {
 		secure: true,
 		// debug: true,
 		tls: {
-			ciphers:'SSLv3',
+			ciphers: 'SSLv3',
 			rejectUnauthorized: false
 		},
 		auth: {
@@ -27,25 +26,16 @@ var options = {
 	},
 	smtpServer: 'mail.yourserver.com',
 	getEmailText: function(token) {
-		var site = 'https://localhost.com:8080'
-		var url = path.join(site, '/public/auth') + '?token=' + token
-		var emailHtml = '<p>Somebody is trying to log in as you!  If it is you, you should click on ' + 'this handy link'.link(url) + '</p>'
+		const site = 'http://localhost.com:8080'
+		const url = path.join(site, '/public/auth') + '?token=' + token
+		const emailHtml = '<p>Somebody is trying to log in as you!  If it is you, you should click on ' + 'this handy link'.link(url) + '</p>'
 			+ '<p>If it isn\'t you, you should definitely NOT click on that link.</p>'
 		return emailHtml
 	},
 	domain: 'localhost.com'
 }
 
-var server = https.createServer({
-	// passphrase: 'super secret test pass phrase',
-	key: readFileSync(__dirname + '/server-key.pem'),
-	cert: readFileSync(__dirname + '/server-cert.pem'),
-	ca: [ readFileSync(__dirname + '/server-csr.pem') ]
-})
-
-// var server = require('http').createServer()
-
-server = privateServer(options, server)
+const server = privateServer(options, http.createServer())
 
 server.updateUsers([
 	'you@wherever.com'
