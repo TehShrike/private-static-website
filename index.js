@@ -6,6 +6,7 @@ const JustLoginCore = require('just-login-core')
 const justLoginDebouncer = require('just-login-debouncer')
 const levelmem = require('level-mem')
 const emailer = require('just-login-emailer')
+const SessionState = require('just-login-session-state')
 
 const http = require('http')
 const path = require('path')
@@ -34,14 +35,18 @@ module.exports = function(options, server) {
 	server = server || http.createServer()
 
 	const jlc = JustLoginCore(options.db || levelmem('jlcDb'))
+	const sessionState = SessionState(jlc, levelmem('jlcSessions'))
 	const debounceDb = levelmem('debouncing')
 	let usersWithAccess = {}
 
 	justLoginDebouncer(jlc, debounceDb)
-	emailer(jlc, options.getEmailText, options.transportOptions, options.defaultMailOptions, function(err) {
-		if (err) {
-			console.error('Error sending email!', err.message || err)
-		}
+
+	emailer(jlc, {
+		createHtmlEmail: options.getEmailText,
+		transport: options.transportOptions,
+		mail: options.defaultMailOptions
+	}).on('error', err => {
+		console.error('Error sending email!', err && err.message)
 	})
 
 	function userHasAccess(emailAddress) {
@@ -62,8 +67,12 @@ module.exports = function(options, server) {
 
 	const io = socketio(server)
 
-	server.on('request', (req, res) => httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, userHasAccess, domain: options.domain }, req, res))
-	io.on('connection', socket => socketHandler({ jlc, userHasAccess, socket }))
+	server.on('request', (req, res) => {
+		if (!req.url.startsWith('/socket.io/')) {
+			httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, sessionState, userHasAccess, domain: options.domain }, req, res)
+		}
+	})
+	io.on('connection', socket => socketHandler({ jlc, sessionState, userHasAccess, socket }))
 
 	server.updateUsers = function updateUsers(contents) {
 		try {
@@ -83,7 +92,7 @@ module.exports = function(options, server) {
 	return server
 }
 
-function httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, userHasAccess, domain }, req, res) {
+function httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, sessionState, userHasAccess, domain }, req, res) {
 	const cookies = new Cookie(req, res)
 	const sessionIdInRequestCookie = cookies.get(sessionCookieId)
 
@@ -129,9 +138,10 @@ function httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, userHa
 	} else if (req.url === '/public' || req.url.startsWith('/public/')) {
 		getSessionIdAndSetIfNecessary()
 		servePublicContent(req, res)
-	} else if (sessionIdInRequestCookie && !req.url.startsWith('/socket.io/')) {
-		jlc.isAuthenticated(sessionIdInRequestCookie, function(err, emailAddress) {
+	} else if (sessionIdInRequestCookie) {
+		sessionState.isAuthenticated(sessionIdInRequestCookie, function(err, emailAddress) {
 			if (err) {
+				console.error('Error checking isAuthenticated', err, err.stack)
 				res.writeHead(500)
 				res.end(err.message || err)
 			} else if (emailAddress && userHasAccess(emailAddress)) {
@@ -145,7 +155,7 @@ function httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, userHa
 	}
 }
 
-function socketHandler({ jlc, userHasAccess, socket }) {
+function socketHandler({ jlc, sessionState, userHasAccess, socket }) {
 	const sessionId = new Cookie(socket.request).get(sessionCookieId)
 	if (sessionId) {
 		socket.join(sessionId)
@@ -153,7 +163,7 @@ function socketHandler({ jlc, userHasAccess, socket }) {
 		console.error('socket connection happened without a session! BORKED')
 	}
 
-	jlc.isAuthenticated(sessionId, function(err, emailAddress) {
+	sessionState.isAuthenticated(sessionId, function(err, emailAddress) {
 		if (!err && emailAddress) {
 			sendAuthenticationMessageToClient(userHasAccess, socket.emit.bind(socket), emailAddress)
 		}
