@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "testserver": "npm run build:client && node test/server.js",
-    "build:client": "browserify public/login.js -o public/build.js",
+    "build": "browserify public/login.js -o public/build.js",
     "prepublish": "npm run build:client"
   },
   "repository": {
