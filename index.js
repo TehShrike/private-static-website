@@ -85,21 +85,27 @@ module.exports = function(options, server) {
 
 function httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, userHasAccess, domain }, req, res) {
 	const cookies = new Cookie(req, res)
-	let sessionId = cookies.get(sessionCookieId)
 
-	// session management
-	if (!sessionId) {
-		sessionId = uuid()
-		cookies.set(sessionCookieId, sessionId, {
-			domain: domain,
-			httpOnly: false
-		})
+	function getSessionId() {
+		let sessionId = cookies.get(sessionCookieId)
+
+		// session management
+		if (!sessionId) {
+			console.log('Setting session id while responding to ', req.url)
+			sessionId = uuid()
+			cookies.set(sessionCookieId, sessionId, {
+				domain: domain,
+				httpOnly: false
+			})
+		}
+
+		return sessionId
 	}
 
 	// routing
 	if (req.url === public('session.js')) {
 		res.setHeader('Content-Type', 'text/javascript')
-		res.end(`${sessionCookieId}="${sessionId}"`)
+		res.end(`${sessionCookieId}="${getSessionId()}"`)
 	} else if (req.url.startsWith(tokenPrefix)) {
 		const token = req.url.substr(tokenPrefix.length)
 
@@ -121,7 +127,7 @@ function httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, userHa
 	} else if (req.url === '/public' || req.url.startsWith('/public/')) {
 		servePublicContent(req, res)
 	} else if (!req.url.startsWith('/socket.io/')) {
-		jlc.isAuthenticated(sessionId, function(err, emailAddress) {
+		jlc.isAuthenticated(getSessionId(), function(err, emailAddress) {
 			if (err) {
 				res.writeHead(500)
 				res.end(err.message || err)
