@@ -102,6 +102,13 @@ function httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, userHa
 		}
 	}
 
+	function redirectTo(publicLocation) {
+		res.writeHead(303, {
+			'Location': public(publicLocation)
+		})
+		res.end()
+	}
+
 	// routing
 	if (req.url === public('session.js')) {
 		res.setHeader('Content-Type', 'text/javascript')
@@ -110,19 +117,14 @@ function httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, userHa
 		const token = req.url.substr(tokenPrefix.length)
 
 		jlc.authenticate(token, function(err, credentials) {
-			let target = public('success.html')
 			if (err) {
 				console.error('Someone had an error authenticating at the token endpoint', err.message || err)
-				target = public('index.html')
+				redirectTo('index.html')
 			} else {
 				const sessionSocket = io.to(credentials.sessionId)
 				sendAuthenticationMessageToClient(userHasAccess, sessionSocket.emit.bind(sessionSocket), credentials.contactAddress)
+				redirectTo('success.html')
 			}
-
-			res.writeHead(303, {
-				'Location': target
-			})
-			res.end()
 		})
 	} else if (req.url === '/public' || req.url.startsWith('/public/')) {
 		getSessionIdAndSetIfNecessary()
@@ -135,12 +137,11 @@ function httpHandler({ serveContentFromRepo, servePublicContent, io, jlc, userHa
 			} else if (emailAddress && userHasAccess(emailAddress)) {
 				serveContentFromRepo(req, res)
 			} else {
-				res.writeHead(303, {
-					'Location': public('index.html')
-				})
-				res.end()
+				redirectTo('index.html')
 			}
 		})
+	} else {
+		redirectTo('index.html')
 	}
 }
 
