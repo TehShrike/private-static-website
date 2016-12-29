@@ -4,9 +4,9 @@
   "description": "Easily host a private web site authenticated by email address only",
   "main": "index.js",
   "scripts": {
-    "testserver": "npm run build:client && node test/server.js",
+    "testserver": "npm run build && node test/server.js",
     "build": "browserify public/login.js -o public/build.js",
-    "prepublish": "npm run build:client"
+    "prepublish": "npm run build"
   },
   "repository": {
     "type": "git",
