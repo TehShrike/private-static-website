@@ -56,7 +56,8 @@ module.exports = function(options, server) {
 	const serveContentFromRepo = ecstatic({
 		root: options.privateContentPath,
 		autoIndex: true,
-		handleError: true
+		handleError: true,
+		cache: 'private, max-age=3600, must-revalidate'
 	})
 	const servePublicContent = ecstatic({
 		root: __dirname + '/public',
