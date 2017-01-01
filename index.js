@@ -57,7 +57,8 @@ module.exports = function(options, server) {
 		root: options.privateContentPath,
 		autoIndex: true,
 		handleError: true,
-		cache: 'private, max-age=3600, must-revalidate'
+		cache: 'private, max-age=3600, must-revalidate',
+		gzip: true
 	})
 	const servePublicContent = ecstatic({
 		root: __dirname + '/public',
